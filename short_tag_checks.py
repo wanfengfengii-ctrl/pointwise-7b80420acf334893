@@ -114,7 +114,7 @@ def run_capture(database, *, fail=False, newer_first=False):
     def deliver(day, line):
         source.deliver(position(line), day.accept_short)
 
-    with open_workday(database, 'short-demo', ('L', 'R')):
+    with open_workday(database, 'short-demo', ('L', 'R'), short_tags=True):
         pass
     for scan in sample['scans']:
         source.start(scan['scan'], scan['tag'], position(scan['start']))

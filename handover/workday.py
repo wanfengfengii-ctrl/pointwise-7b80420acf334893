@@ -12,11 +12,12 @@ from capture.intake import CaptureIntake
 from capture.ledger import CaptureLedger
 from capture.recovery import MaterialReader
 from capture.retention import MaterialStore
+from capture.short_capture import ShortIntake, is_short_shift
 from device.events import DeviceEvent, EventPosition, EventRejected
 from device.recording import read_recording
 from device.replay import Replay
 from device.slots import OverwriteNotice
-from device.source import DeviceSource
+from device.source import DeviceSource, ShortDelivery
 from handover.catalog import RegisterSnapshot, ShiftRegister
 from handover.retrieve import HistoricalReader
 from handover.shifts import ShiftBook
@@ -41,6 +42,7 @@ class Workday:
         self.history = HistoricalReader(self.results)
         self.replay: Replay | None = None
         self.source: DeviceSource | None = None
+        self.short_intake: ShortIntake | None = None
         self._closed = False
 
     def initialize(self) -> None:
@@ -53,9 +55,19 @@ class Workday:
             self.results.initialize()
 
     def record_event(self, payload: object, position: EventPosition) -> DeviceEvent:
+        if is_short_shift(self.connection, self.shift_id):
+            raise EventRejected(position, 'short-tag shifts only accept short deliveries')
         if self.replay is None:
             raise EventRejected(position, 'no online device is attached')
         return self.replay.record_event(payload, position)
+
+    def accept_short(self, delivery: ShortDelivery) -> None:
+        """Commit one recycled short-tag control record or original block."""
+        if not is_short_shift(self.connection, self.shift_id):
+            raise EventRejected(delivery.position, 'ordinary shifts do not accept short-tag deliveries')
+        if self.short_intake is None:
+            raise EventRejected(delivery.position, 'short-tag intake is not attached to this connection')
+        self.short_intake.accept(delivery)
 
     def scan_status(self, scan_id: str) -> ScanStatus | None:
         return self.scans.scan_status(self.shift_id, scan_id)
@@ -96,6 +108,7 @@ def open_workday(
     *,
     online: bool = True,
     observe_overwrite: Callable[[OverwriteNotice], None] | None = None,
+    short_tags: bool = False,
 ) -> Workday:
     profile = validate_profile(slots) if slots is not None else None
     day = Workday(connect_workdb(path), shift_id)
@@ -103,6 +116,14 @@ def open_workday(
         day.initialize()
         if online:
             shift = day.shifts.open_shift(shift_id, profile)
+            if short_tags or is_short_shift(day.connection, shift_id):
+                intake = ShortIntake(
+                    day.connection, shift_id, shift.profile,
+                    day.scans, day.ledger, day.materials,
+                )
+                intake.initialize()
+                day.short_intake = intake
+                return day
             intake = CaptureIntake(day.connection, shift_id, shift.profile, day.scans, day.ledger, day.materials)
 
             def before_overwrite(notice: OverwriteNotice) -> None:
@@ -118,6 +139,13 @@ def open_workday(
                 raise ValueError(f'unknown shift {shift_id!r}')
             if profile is not None and profile != shift.profile:
                 raise ValueError(f'profile already fixed for shift {shift_id!r}')
+            if is_short_shift(day.connection, shift_id):
+                intake = ShortIntake(
+                    day.connection, shift_id, shift.profile,
+                    day.scans, day.ledger, day.materials,
+                )
+                intake.initialize()
+                day.short_intake = intake
         return day
     except BaseException:
         day.close()

@@ -3,6 +3,7 @@ import sqlite3
 
 from archive.bindings import RequestBinding, bind_scan
 from capture.recovery import MaterialReader, ScanMaterialRef
+from capture.short_capture import is_short_shift
 from quality.scanbook import ScanBook
 from workdb import transaction
 
@@ -52,7 +53,10 @@ class RequestBook:
                 if prior.shift_id != shift_id:
                     raise ValueError(f'request {request_id!r} belongs to another shift')
                 return prior
-            status = self.scans.latest_complete(shift_id)
+            if is_short_shift(self.connection, shift_id):
+                status = self.scans.latest_complete_short(shift_id)
+            else:
+                status = self.scans.latest_complete(shift_id)
             if status is None:
                 return None
             binding = bind_scan(status, self.reader)
