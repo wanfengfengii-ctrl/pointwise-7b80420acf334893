@@ -1,0 +1,12 @@
+{"kind":"start","seq":1,"scan":"S1","event_id":"E1"}
+{"kind":"write","seq":2,"scan":"S1","event_id":"E2","slot":"L","read":7}
+{"kind":"write","seq":3,"scan":"S1","event_id":"E3","slot":"R","read":11}
+{"kind":"end","seq":4,"scan":"S1","event_id":"E4"}
+{"kind":"start","seq":5,"scan":"S2","event_id":"E5"}
+{"kind":"write","seq":6,"scan":"S2","event_id":"E6","slot":"L","read":19}
+{"kind":"write","seq":7,"scan":"S2","event_id":"E7","slot":"R","read":22,"bad":"尾块饱和"}
+{"kind":"end","seq":8,"scan":"S2","event_id":"E8"}
+{"kind":"start","seq":9,"scan":"S3","event_id":"E9"}
+{"kind":"write","seq":10,"scan":"S3","event_id":"E10","slot":"L","read":6}
+{"kind":"write","seq":11,"scan":"S3","event_id":"E11","slot":"R","read":6}
+{"kind":"end","seq":12,"scan":"S3","event_id":"E12"}
